@@ -1,25 +1,27 @@
 import os
 import json
-import anthropic
+from openai import OpenAI
 from typing import List, Dict, Any, Optional
+import httpx
 
 
 class LLMClient:
-    """LLM client using OpenRouter API (Anthropic-compatible)"""
+    """LLM client using OpenRouter API (OpenAI-compatible)"""
 
     def __init__(self):
         self.api_key = os.getenv("OPENROUTER_API_KEY", "")
         if not self.api_key:
             raise ValueError("OPENROUTER_API_KEY not set in environment")
 
-        # Configure Anthropic client to use OpenRouter
-        self.client = anthropic.Anthropic(
+        # OpenRouter uses OpenAI-compatible format
+        self.client = OpenAI(
             api_key=self.api_key,
-            base_url="https://openrouter.ai/api/v1"
+            base_url="https://openrouter.ai/api/v1",
+            timeout=httpx.Timeout(30.0, connect=10.0)  # 30s timeout
         )
 
-        # Default model
-        self.model = "anthropic/claude-3.5-sonnet-20241022"
+        # Free model on OpenRouter
+        self.model = "deepseek/deepseek-v4-flash:free"
 
     def generate(
         self,
@@ -30,16 +32,16 @@ class LLMClient:
     ) -> str:
         """Generate a response from the LLM"""
         try:
-            response = self.client.messages.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                system=system_prompt,
                 messages=[
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ]
             )
-            return response.content[0].text
+            return response.choices[0].message.content
         except Exception as e:
             return f"Error: {str(e)}"
 

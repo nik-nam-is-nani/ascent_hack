@@ -1,3 +1,4 @@
+import json
 from typing import List, Dict, Any, Optional
 from models.employee import Employee
 from tools import (
@@ -201,29 +202,30 @@ def recommend_task_distribution(
     employees: List[Employee]
 ) -> Dict[str, Any]:
     """Recommend how to distribute tasks among available employees"""
-    client = get_llm_client()
+    try:
+        client = get_llm_client()
 
-    # Prepare task and employee data
-    tasks_data = []
-    for task in tasks:
-        tasks_data.append({
-            "id": task.id,
-            "title": task.title,
-            "priority": task.priority.value,
-            "estimated_hours": task.estimated_hours
-        })
+        # Prepare task and employee data
+        tasks_data = []
+        for task in tasks:
+            tasks_data.append({
+                "id": task.id,
+                "title": task.title,
+                "priority": task.priority.value,
+                "estimated_hours": task.estimated_hours
+            })
 
-    employees_data = []
-    for emp in employees:
-        employees_data.append({
-            "id": emp.id,
-            "name": emp.name,
-            "role": emp.role,
-            "workload_score": emp.workload_score,
-            "skills": [s.skill for s in emp.skills]
-        })
+        employees_data = []
+        for emp in employees:
+            employees_data.append({
+                "id": emp.id,
+                "name": emp.name,
+                "role": emp.role,
+                "workload_score": emp.workload_score,
+                "skills": [s.skill for s in emp.skills]
+            })
 
-    prompt = f"""Given these tasks and available employees, recommend optimal distribution:
+        prompt = f"""Given these tasks and available employees, recommend optimal distribution:
 
 Tasks: {json.dumps(tasks_data)}
 Employees: {json.dumps(employees_data)}
@@ -239,8 +241,30 @@ Provide distribution in JSON format:
 
 Respond ONLY with valid JSON."""
 
-    result = client.generate_json(AVAILABILITY_AGENT_SYSTEM_PROMPT, prompt)
-    return result
-
-
-import json
+        result = client.generate_json(AVAILABILITY_AGENT_SYSTEM_PROMPT, prompt)
+        
+        if "error" in result:
+            raise Exception(result.get("error", "LLM failed"))
+        
+        return result
+    except Exception as e:
+        # Fallback - simple round-robin distribution
+        distributions = []
+        unassigned = []
+        
+        for i, task in enumerate(tasks):
+            if employees and i < len(employees):
+                distributions.append({
+                    "task_id": task.id,
+                    "recommended_employee_id": employees[i % len(employees)].id,
+                    "reason": "Fallback: simple distribution"
+                })
+            else:
+                unassigned.append(task.id)
+        
+        return {
+            "distributions": distributions,
+            "unassigned_tasks": unassigned,
+            "reasoning": "Fallback distribution - LLM unavailable",
+            "fallback": True
+        }

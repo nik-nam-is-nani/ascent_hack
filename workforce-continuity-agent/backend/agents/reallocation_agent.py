@@ -2,6 +2,7 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from models.task import Task, TaskStatus, Decision
 from tools import get_pending_tasks_by_employee, get_employee_by_id, update_task
+from tools import task_manager
 from .availability_agent import find_best_matches, get_team_availability_summary
 from .llm_client import get_llm_client
 
@@ -89,8 +90,6 @@ def process_task_reallocation(
 
 def reallocate_all_tasks(employee_id: str) -> List[Decision]:
     """Reallocate all pending tasks for an absent employee"""
-    from tools import task_manager
-
     pending_tasks = get_pending_tasks_by_employee(employee_id)
 
     if not pending_tasks:

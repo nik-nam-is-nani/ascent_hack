@@ -3,6 +3,7 @@ import EmployeeDashboard from './components/EmployeeDashboard'
 import AgentActivityFeed from './components/AgentActivityFeed'
 import TaskManifest from './components/TaskManifest'
 import ManagerReport from './components/ManagerReport'
+import AgentVisualizer from './components/AgentVisualizer'
 
 const API_BASE = 'http://localhost:8000'
 
@@ -92,6 +93,8 @@ function App() {
 
     setIsProcessing(true)
     setSelectedEmployee(employeeId)
+    // Clear previous activities when starting new process
+    setActivities([])
 
     try {
       const res = await fetch(`${API_BASE}/api/absence/${employeeId}`, {
@@ -104,9 +107,13 @@ function App() {
       }
 
       // Refresh data
-      fetchEmployees()
-      fetchTasks()
-      setActiveTab('report')
+      await fetchEmployees()
+      await fetchTasks()
+      
+      // Delay switching tab so user can see completion
+      setTimeout(() => {
+        setActiveTab('report')
+      }, 2000)
     } catch (err) {
       console.error('Failed to mark absence:', err)
       alert('Failed to trigger agent pipeline')
@@ -123,6 +130,7 @@ function App() {
       fetchEmployees()
       fetchTasks()
       setReport(null)
+      setActivities([])
     } catch (err) {
       console.error('Failed to reset:', err)
     }
@@ -138,89 +146,126 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-slate-50 text-slate-900">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">WC</span>
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16 items-center">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-indigo-100">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-slate-900">Ascent <span className="text-indigo-600">Continuity</span></h1>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Multi-Agent Workforce Protection</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Workforce Continuity Agent</h1>
-              <p className="text-sm text-gray-500">Multi-agent autonomous task management</p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <span className="text-sm text-gray-600">
-                {wsConnected ? 'Connected' : 'Disconnected'}
-              </span>
+            <div className="flex items-center gap-6">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-slate-50 rounded-full border border-slate-100">
+                <div className={`w-2 h-2 rounded-full ${wsConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></div>
+                <span className="text-xs font-semibold text-slate-600">
+                  {wsConnected ? 'Neural Link Active' : 'Neural Link Offline'}
+                </span>
+              </div>
+              
+              <div className="h-8 w-8 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden">
+                <img src={`https://ui-avatars.com/api/?name=Manager&background=6366f1&color=fff`} alt="Profile" />
+              </div>
             </div>
           </div>
         </div>
       </header>
 
       {/* Navigation */}
-      <nav className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="flex gap-1">
+      <div className="bg-white border-b border-slate-200 sticky top-16 z-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex -mb-px space-x-8">
             {[
-              { id: 'dashboard', label: 'Employee Dashboard' },
-              { id: 'tasks', label: 'Task Manifest' },
-              { id: 'report', label: 'Manager Report' }
+              { id: 'dashboard', label: 'Workforce Hub', icon: '👥' },
+              { id: 'tasks', label: 'Task Manifest', icon: '📋' },
+              { id: 'report', label: 'Continuity Reports', icon: '📊' }
             ].map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                  activeTab === tab.id
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
+                className={`
+                  flex items-center gap-2 py-4 px-1 border-b-2 font-semibold text-sm transition-all
+                  ${activeTab === tab.id
+                    ? 'border-indigo-600 text-indigo-600'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                  }
+                `}
               >
+                <span className="text-lg">{tab.icon}</span>
                 {tab.label}
               </button>
             ))}
-          </div>
+          </nav>
         </div>
-      </nav>
+      </div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'dashboard' && (
-          <div className="flex gap-6">
-            <div className="flex-1">
-              <EmployeeDashboard
-                employees={employees}
-                tasks={tasks}
-                onMarkAbsent={handleMarkAbsent}
-                onReset={handleReset}
-                isProcessing={isProcessing}
-              />
-            </div>
-            <div className="w-96">
-              <AgentActivityFeed
-                activities={activities}
-                onClear={clearActivities}
-                isProcessing={isProcessing}
-              />
+          <div className="space-y-6">
+            <AgentVisualizer 
+              activities={activities} 
+              isProcessing={isProcessing} 
+              targetEmployee={employees.find(e => e.id === selectedEmployee)}
+            />
+            
+            <div className="flex flex-col lg:flex-row gap-8">
+              <div className="flex-1">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Workforce Status</h2>
+                    <p className="text-sm text-slate-500">Real-time presence and task load</p>
+                  </div>
+                </div>
+                <EmployeeDashboard
+                  employees={employees}
+                  tasks={tasks}
+                  onMarkAbsent={handleMarkAbsent}
+                  onReset={handleReset}
+                  isProcessing={isProcessing}
+                />
+              </div>
+              <div className="lg:w-96">
+                <AgentActivityFeed
+                  activities={activities}
+                  onClear={clearActivities}
+                  isProcessing={isProcessing}
+                />
+              </div>
             </div>
           </div>
         )}
 
         {activeTab === 'tasks' && (
-          <TaskManifest tasks={tasks} employees={employees} />
+          <div className="animate-in fade-in duration-500">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">Task Manifest</h2>
+              <p className="text-slate-500">Comprehensive view of all organizational tasks and their current state.</p>
+            </div>
+            <TaskManifest tasks={tasks} employees={employees} />
+          </div>
         )}
 
         {activeTab === 'report' && (
-          <ManagerReport
-            report={report}
-            selectedEmployee={selectedEmployee}
-            employees={employees}
-          />
+          <div className="animate-in fade-in duration-500 max-w-4xl mx-auto">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">Continuity Intelligence Report</h2>
+              <p className="text-slate-500">Automated analysis and reallocation strategy for workforce absences.</p>
+            </div>
+            <ManagerReport
+              report={report}
+              selectedEmployee={selectedEmployee}
+              employees={employees}
+            />
+          </div>
         )}
       </main>
     </div>

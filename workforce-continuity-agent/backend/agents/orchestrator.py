@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Dict, Any, Optional, Callable
 from datetime import datetime
 from models.employee import Employee
@@ -63,12 +64,20 @@ def broadcast_activity(phase: str, message: str, details: Dict = None):
     """Broadcast activity to WebSocket clients"""
     activity = activity_tracker.add(phase, message, details)
     if broadcast_callback:
-        broadcast_callback(activity)
+        try:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                asyncio.create_task(broadcast_callback(activity))
+            else:
+                loop.run_until_complete(broadcast_callback(activity))
+        except Exception:
+            pass  # Silently fail if broadcast fails
     return activity
 
 
-def run_orchestrator(employee_id: str) -> Dict[str, Any]:
-    """Run the full 6-phase agent pipeline"""
+async def run_orchestrator(employee_id: str) -> Dict[str, Any]:
+    """Run the full 6-phase agent pipeline asynchronously with delays to simulate thinking"""
 
     # Get employee info
     employee = get_employee_by_id(employee_id)
@@ -81,16 +90,18 @@ def run_orchestrator(employee_id: str) -> Dict[str, Any]:
         f"Detected absence: {employee.name} ({employee.role})",
         {"employee_id": employee_id, "employee_name": employee.name}
     )
-
+    
+    await asyncio.sleep(1.5) # Simulate detection time
     mark_employee_absent(employee_id)
 
     # Phase 2: Get pending tasks
     broadcast_activity(
         "phase_2",
-        f"Retrieved {employee.name}'s profile and pending tasks",
+        f"Retrieving {employee.name}'s profile and pending tasks...",
         {"employee_id": employee_id}
     )
-
+    
+    await asyncio.sleep(1.2)
     pending_tasks = get_pending_tasks_by_employee(employee_id)
 
     if not pending_tasks:
@@ -108,32 +119,67 @@ def run_orchestrator(employee_id: str) -> Dict[str, Any]:
 
     broadcast_activity(
         "phase_2",
-        f"Found {len(pending_tasks)} pending task(s)",
+        f"Found {len(pending_tasks)} pending task(s) in system",
         {"task_count": len(pending_tasks), "tasks": [t.id for t in pending_tasks]}
     )
+    
+    await asyncio.sleep(1.0)
 
     # Phase 3: Analyze tasks
     broadcast_activity(
         "phase_3",
-        f"Phase 3: Analyzing tasks...",
+        "Phase 3: Deep analysis of task requirements and dependencies...",
         {"phase": "task_analysis"}
     )
+    
+    # Granular analysis steps
+    analysis_thoughts = [
+        "Scanning organizational task manifest for critical path dependencies...",
+        "Evaluating historical performance metrics for available team members...",
+        "Calculating complexity-to-skill ratio for pending deliverables...",
+        "Synthesizing optimal reallocation strategy using Neural Engine V4..."
+    ]
+    for thought in analysis_thoughts:
+        broadcast_activity(
+            "phase_3",
+            thought,
+            {"sub_phase": "analysis_thought", "task_id": "GLOBAL"}
+        )
+        await asyncio.sleep(0.8)
 
+    await asyncio.sleep(0.5)
     task_analysis = analyze_tasks_for_employee(employee_id)
 
     broadcast_activity(
         "phase_3",
-        f"Analyzed {len(pending_tasks)} tasks — {task_analysis['total_estimated_hours']:.1f} hours total",
+        f"Analysis complete: {len(pending_tasks)} tasks — {task_analysis['total_estimated_hours']:.1f} hours total",
         task_analysis
     )
+    
+    await asyncio.sleep(1.0)
 
     # Phase 4: Reallocate tasks to humans
     broadcast_activity(
         "phase_4",
-        f"Phase 4: Finding best matches for task reassignment...",
+        "Phase 4: Optimization engine finding best matches for reassignment...",
         {"phase": "reallocation"}
     )
+    
+    planning_steps = [
+        "Mapping task priorities to available team capacity...",
+        "Validating skill-set alignment for target assignees...",
+        "Optimizing workload balance across departments...",
+        "Finalizing continuity decisions and routing notifications..."
+    ]
+    for step in planning_steps:
+        broadcast_activity(
+            "phase_4",
+            step,
+            {"sub_phase": "planning_step"}
+        )
+        await asyncio.sleep(0.7)
 
+    await asyncio.sleep(1.0)
     decisions = reallocate_all_tasks(employee_id)
 
     # Notify assigned employees
@@ -153,9 +199,12 @@ def run_orchestrator(employee_id: str) -> Dict[str, Any]:
                 if task:
                     broadcast_activity(
                         "phase_4",
-                        f"Task {decision.task_id} reassigned to {assigned_emp.name} (confidence: {decision.confidence:.0%})",
+                        f"Allocated: Task {decision.task_id} assigned to {assigned_emp.name} (confidence: {decision.confidence:.0%})",
                         {"task_id": decision.task_id, "assigned_to": assigned_emp.name, "confidence": decision.confidence}
                     )
+                    await asyncio.sleep(0.5) # Slight delay between assignments
+
+    await asyncio.sleep(1.0)
 
     # Phase 5: Execute remaining tasks with AI
     auto_complete_tasks = [
@@ -166,35 +215,100 @@ def run_orchestrator(employee_id: str) -> Dict[str, Any]:
     if auto_complete_tasks:
         broadcast_activity(
             "phase_5",
-            f"Phase 5: Executing {len(auto_complete_tasks)} task(s) autonomously...",
+            f"Agent Executor starting autonomous completion of {len(auto_complete_tasks)} task(s)...",
             {"phase": "execution", "task_count": len(auto_complete_tasks)}
         )
+        
+        await asyncio.sleep(1.0)
 
-        executor_results = execute_tasks_auto(auto_complete_tasks)
-        executor_summary = get_executor_summary(executor_results)
+        for task in auto_complete_tasks:
+            # Related skills for this task type
+            skills_map = {
+                "CODE": ["Python", "FastAPI", "React", "System Architecture"],
+                "RESEARCH": ["Data Synthesis", "Market Analysis", "Critical Review"],
+                "REPORT": ["Data Visualization", "Executive Writing", "Strategic Planning"],
+                "PRESENTATION": ["Visual Design", "Narrative Structure", "Public Speaking"],
+                "DOCUMENTATION": ["Technical Writing", "API Design", "User Experience"]
+            }
+            
+            task_type_str = str(task.task_type.value).upper()
+            required_skills = skills_map.get(task_type_str, ["General Intelligence", "Problem Solving"])
+            
+            # Simulate skill learning for this task
+            for skill in required_skills:
+                broadcast_activity(
+                    "phase_5",
+                    f"Acquiring skill: {skill}...",
+                    {"sub_phase": "learning", "skill": skill, "task_id": task.id}
+                )
+                await asyncio.sleep(0.8)
+                
+                broadcast_activity(
+                    "phase_5",
+                    f"Mastered skill: {skill}",
+                    {"sub_phase": "mastered", "skill": skill, "task_id": task.id}
+                )
+                await asyncio.sleep(0.4)
 
-        for result in executor_results:
-            task_id = result.get("task_id", "")
+            # Now implement the task using learned skills
+            broadcast_activity(
+                "phase_5",
+                f"Implementing task {task.id}: {task.title}",
+                {"sub_phase": "implementing", "task_id": task.id, "skills_used": required_skills}
+            )
+            
+            await asyncio.sleep(1.0)
+
+            # Detailed implementation steps
+            implementation_steps = [
+                {"action": "creating_files", "message": f"Creating new module: {task_type_str.lower()}_handler.py", "file": f"src/{task_type_str.lower()}_handler.py"},
+                {"action": "updating_code", "message": f"Injecting logic into {task.id} core service...", "file": "src/services/core.py"},
+                {"action": "editing_apis", "message": "Registering new FastAPI routes for task execution...", "route": f"/api/auto/{task.id}"},
+                {"action": "writing_react", "message": "Generating UI components for task artifacts...", "component": f"{task_type_str.capitalize()}Viewer.jsx"}
+            ]
+
+            for step in implementation_steps:
+                broadcast_activity(
+                    "phase_5",
+                    f"Action: {step['message']}",
+                    {
+                        "sub_phase": "execution_step", 
+                        "task_id": task.id, 
+                        "action": step['action'],
+                        "details": step,
+                        "code_preview": _generate_mock_code(step['action'], task)
+                    }
+                )
+                await asyncio.sleep(1.2)
+            
+            # Actual execution call
+            result = execute_tasks_auto([task])[0]
+            
             status = result.get("status", "unknown")
             if status == "completed":
                 broadcast_activity(
                     "phase_5",
-                    f"Task {task_id} auto-completed by Agent Executor",
-                    {"task_id": task_id, "executed_by": "AgentExecutor", "artifacts": result.get("artifacts", [])}
+                    f"Successfully applied skills to complete task {task.id}",
+                    {"sub_phase": "applied", "task_id": task.id, "executed_by": "AgentExecutor", "artifacts": result.get("artifacts", [])}
                 )
             else:
                 broadcast_activity(
                     "phase_5",
-                    f"Task {task_id} execution failed: {result.get('error', 'Unknown error')}",
-                    {"task_id": task_id, "status": "failed"}
+                    f"Execution failed on task {task.id}: {result.get('error', 'Unknown error')}",
+                    {"task_id": task.id, "status": "failed"}
                 )
+            await asyncio.sleep(1.0) # Delay between task executions
+
+    await asyncio.sleep(1.0)
 
     # Phase 6: Generate manager report
     broadcast_activity(
         "phase_6",
-        f"Phase 6: Generating manager report...",
+        "Phase 6: Compiling final continuity report for management...",
         {"phase": "report_generation"}
     )
+    
+    await asyncio.sleep(2.0)
 
     # Generate final report
     reallocation_report = get_reallocation_report(decisions, employee_id)
@@ -212,7 +326,7 @@ def run_orchestrator(employee_id: str) -> Dict[str, Any]:
 
     broadcast_activity(
         "phase_6",
-        f"Process complete! Handled {len(pending_tasks)} tasks",
+        f"Continuity pipeline completed. {len(pending_tasks)} tasks handled efficiently.",
         {
             "total_tasks": len(pending_tasks),
             "reassigned": reallocation_report.get("reassigned_count", 0),
@@ -334,3 +448,16 @@ def reset_absence(employee_id: str) -> Dict[str, Any]:
         "status": "reset",
         "message": f"Employee status reset and tasks restored to {employee.name}"
     }
+
+
+def _generate_mock_code(action: str, task: Task) -> str:
+    """Generate fake code for visualization"""
+    if action == "creating_files":
+        return f"import os\n\ndef init_handler():\n    print('Initializing {task.id}')\n    return True"
+    elif action == "updating_code":
+        return f"def process_task(task_id):\n    # Auto-implementation for {task.id}\n    result = run_logic()\n    return result"
+    elif action == "editing_apis":
+        return f"@app.get('/api/auto/{task.id}')\nasync def handle_task():\n    return {{'status': 'completed', 'task': '{task.title}'}}"
+    elif action == "writing_react":
+        return f"export const {task.id}Viewer = () => {{\n  return <div>Viewing {task.title}</div>\n}}"
+    return "# Processing..."

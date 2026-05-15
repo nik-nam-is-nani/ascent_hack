@@ -82,7 +82,7 @@ set_broadcast_callback(broadcast_to_clients)
 async def startup_event():
     """Initialize database on startup"""
     employees, tasks = initialize_database()
-    print(f"✓ Database initialized with {len(employees)} employees and {len(tasks)} tasks")
+    print(f"Database initialized with {len(employees)} employees and {len(tasks)} tasks")
     broadcast_activity("system", "System initialized", {"employees": len(employees), "tasks": len(tasks)})
 
 
@@ -181,7 +181,7 @@ async def mark_absence(employee_id: str):
         raise HTTPException(status_code=400, detail="Employee is already marked as absent")
 
     # Run the orchestrator
-    result = run_orchestrator(employee_id)
+    result = await run_orchestrator(employee_id)
 
     return {
         "status": "success",

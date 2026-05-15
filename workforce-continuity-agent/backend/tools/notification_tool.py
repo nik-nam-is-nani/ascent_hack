@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional
 from datetime import datetime
 from enum import Enum
+from pydantic import BaseModel
 
 
 class NotificationChannel(str, Enum):

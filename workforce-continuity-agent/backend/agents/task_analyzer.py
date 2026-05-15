@@ -25,9 +25,10 @@ Respond in JSON format with your analysis."""
 
 def analyze_task(task: Task) -> Dict[str, Any]:
     """Analyze a single task"""
-    client = get_llm_client()
+    try:
+        client = get_llm_client()
 
-    prompt = f"""Analyze this task and provide detailed breakdown:
+        prompt = f"""Analyze this task and provide detailed breakdown:
 
 Task ID: {task.id}
 Title: {task.title}
@@ -53,8 +54,49 @@ Provide analysis in JSON format:
     "confidence": 0.0-1.0
 }}"""
 
-    result = client.generate_json(TASK_ANALYZER_SYSTEM_PROMPT, prompt)
-    return result
+        result = client.generate_json(TASK_ANALYZER_SYSTEM_PROMPT, prompt)
+        
+        if "error" in result:
+            raise Exception(result.get("error", "LLM failed"))
+        
+        return result
+    except Exception as e:
+        # Fallback analysis based on task attributes
+        complexity = "simple" if task.estimated_hours <= 2 else "moderate" if task.estimated_hours <= 8 else "complex"
+        should_split = task.estimated_hours > 4 or task.task_type.value in ["presentation", "report"]
+        
+        return {
+            "required_skills": _extract_skills_from_task(task),
+            "approach": f"Complete {task.task_type.value} task",
+            "complexity": complexity,
+            "should_split": should_split,
+            "subtasks": [],
+            "risk_factors": ["Fallback analysis - LLM unavailable"],
+            "estimated_completion_hours": task.estimated_hours,
+            "confidence": 0.5,
+            "fallback": True
+        }
+
+
+def _extract_skills_from_task(task: Task) -> List[str]:
+    """Extract skills from task tags and type"""
+    skills = list(task.tags) if task.tags else []
+    
+    type_skills = {
+        "code": ["programming", "debugging"],
+        "presentation": ["communication", "design"],
+        "research": ["analysis", "documentation"],
+        "report": ["writing", "analysis"],
+        "documentation": ["writing", "technical"],
+        "review": ["analysis", "communication"],
+        "meeting": ["communication", "collaboration"]
+    }
+    
+    task_type_value = task.task_type.value.lower() if hasattr(task.task_type, 'value') else str(task.task_type).lower()
+    if task_type_value in type_skills:
+        skills.extend(type_skills[task_type_value])
+    
+    return skills[:5]
 
 
 def analyze_tasks_for_employee(employee_id: str) -> Dict[str, Any]:
