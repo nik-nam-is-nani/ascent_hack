@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: light dark;
+  color: #213547;
+  background-color: #f8fafc;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-lg shadow-md border border-gray-200;
+  }
+
+  .btn-primary {
+    @apply bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium;
+  }
+
+  .btn-danger {
+    @apply bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors font-medium;
+  }
+
+  .btn-success {
+    @apply bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium;
+  }
+
+  .status-badge {
+    @apply px-3 py-1 rounded-full text-sm font-medium;
+  }
+
+  .status-not-started {
+    @apply bg-gray-100 text-gray-700;
+  }
+
+  .status-in-progress {
+    @apply bg-blue-100 text-blue-700;
+  }
+
+  .status-completed {
+    @apply bg-green-100 text-green-700;
+  }
+
+  .status-reassigned {
+    @apply bg-yellow-100 text-yellow-700;
+  }
+
+  .status-auto-completed {
+    @apply bg-purple-100 text-purple-700;
+  }
+
+  .priority-critical {
+    @apply bg-red-100 text-red-700 border-red-300;
+  }
+
+  .priority-high {
+    @apply bg-orange-100 text-orange-700 border-orange-300;
+  }
+
+  .priority-medium {
+    @apply bg-blue-100 text-blue-700 border-blue-300;
+  }
+
+  .priority-low {
+    @apply bg-gray-100 text-gray-700 border-gray-300;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Animation for activity feed */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.activity-item {
+  animation: slideIn 0.3s ease-out;
+}
+
+/* Pulse animation for processing */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.processing {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
