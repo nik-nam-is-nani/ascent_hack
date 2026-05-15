@@ -86,6 +86,8 @@ async def startup_event():
     broadcast_activity("system", "System initialized", {"employees": len(employees), "tasks": len(tasks)})
 
 
+from database.simulation_seeder import seed_project_simulation
+
 # Root endpoint
 @app.get("/")
 async def root():
@@ -93,6 +95,22 @@ async def root():
         "name": "Workforce Continuity Agent",
         "version": "1.0.0",
         "status": "running"
+    }
+
+@app.post("/api/simulation/start")
+async def start_simulation():
+    """Start a full project simulation"""
+    employees, tasks = seed_project_simulation()
+    
+    # Trigger Alice's absence automatically to start the pipeline
+    # Alice is DEV-001
+    asyncio.create_task(run_orchestrator("DEV-001"))
+    
+    return {
+        "status": "simulation_started",
+        "employees": len(employees),
+        "tasks": len(tasks),
+        "target": "Alice Chen (Lead Backend)"
     }
 
 
