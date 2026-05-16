@@ -568,12 +568,23 @@ def execute_code_task(task: Task, github_token: str = None, github_repo_url: str
     search_query = f"{task.title} {task.description[:100]}"
     print(f"[EXECUTOR] Searching web for: {search_query[:50]}...", flush=True)
     search_results = _search_web(search_query)
-    print(f"[EXECUTOR] Web search done, {len(search_results)} chars", flush=True)
+    print(f"[ORCHESTRATOR] Web search done, {len(search_results)} chars", flush=True)
+
+    # Extract search references for PDF report
+    search_references = []
+    if search_results and len(search_results) > 10:
+        # Split into individual references
+        for line in search_results.split('\n'):
+            line = line.strip()
+            if line and len(line) > 20 and not line.startswith('Error'):
+                search_references.append(line[:150])
+        search_references = search_references[:5]  # Limit to 5 references
 
     broadcast_activity("phase_5", f"Web search completed for: {task.title}", {
         "task_id": task.id,
         "sub_phase": "web_search_complete",
-        "results_summary": search_results[:200] if len(search_results) > 200 else search_results
+        "results_summary": search_results[:200] if len(search_results) > 200 else search_results,
+        "references": search_references
     })
 
     # 4. Try LLM code generation, fallback to template
@@ -737,6 +748,7 @@ Return JSON with files array, commit_message, and summary."""
         "summary": result.get("summary", "Task completed."),
         "commit_message": commit_msg,
         "push_message": push_msg,
+        "search_references": search_references,
         "executed_by": "AgentExecutor"
     }
 

@@ -218,6 +218,7 @@ async def _run_pipeline(
         t for t in pending_tasks
         if any(d.task_id == t.id and d.decision_type == "auto_complete" for d in decisions)
     ]
+    execution_results = []  # Collect results for PDF report
     print(f"[ORCHESTRATOR] Phase 5: {len(auto_complete_tasks)} tasks to auto-complete", flush=True)
 
     if auto_complete_tasks:
@@ -298,6 +299,19 @@ async def _run_pipeline(
                 result = {"status": "failed", "error": str(exec_err)}
 
             status = result.get("status", "unknown")
+            # Store execution result for PDF report
+            execution_results.append({
+                "task_id": task.id,
+                "task_title": task.title,
+                "task_type": task.task_type.value if task.task_type else "unknown",
+                "status": status,
+                "artifacts": result.get("artifacts", []),
+                "commit_message": result.get("commit_message", ""),
+                "summary": result.get("summary", ""),
+                "files_created": [a for a in result.get("artifacts", []) if a.endswith(('.py', '.js', '.jsx', '.tsx', '.html', '.css'))],
+                "search_references": result.get("search_references", []),
+            })
+
             if status == "completed":
                 broadcast_activity(
                     "phase_5",
@@ -339,7 +353,7 @@ async def _run_pipeline(
 
     # Generate PDF report
     try:
-        pdf_path = _generate_pdf_report(employee, pending_tasks, decisions, employee_id)
+        pdf_path = _generate_pdf_report(employee, pending_tasks, decisions, employee_id, execution_results)
         broadcast_activity(
             "phase_6",
             f"PDF report generated: {pdf_path}",
@@ -478,11 +492,15 @@ def _generate_pdf_report(
     employee: Employee,
     tasks: List[Task],
     decisions: List[Decision],
-    employee_id: str
+    employee_id: str,
+    execution_results: List[Dict[str, Any]] = None
 ) -> str:
-    """Generate a PDF manager report and return the file path"""
+    """Generate a PDF manager report with execution details and references"""
     from fpdf import FPDF
     import os
+
+    if execution_results is None:
+        execution_results = []
 
     class ReportPDF(FPDF):
         def header(self):
@@ -509,6 +527,12 @@ def _generate_pdf_report(
             self.line(10, self.get_y(), 200, self.get_y())
             self.ln(3)
 
+        def sub_section(self, title):
+            self.set_font('Helvetica', 'B', 11)
+            self.set_text_color(22, 33, 62)
+            self.cell(0, 8, title, new_x="LMARGIN", new_y="NEXT")
+            self.ln(1)
+
         def field(self, label, value):
             self.set_font('Helvetica', 'B', 10)
             self.set_text_color(80)
@@ -516,6 +540,18 @@ def _generate_pdf_report(
             self.set_font('Helvetica', '', 10)
             self.set_text_color(26, 26, 46)
             self.cell(0, 6, str(value), new_x="LMARGIN", new_y="NEXT")
+
+        def body(self, text):
+            self.set_font('Helvetica', '', 9)
+            self.set_text_color(26, 26, 46)
+            self.multi_cell(0, 5, str(text))
+            self.ln(1)
+
+        def bullet(self, text):
+            self.set_font('Helvetica', '', 9)
+            self.set_text_color(26, 26, 46)
+            self.cell(6, 5, '-')
+            self.multi_cell(0, 5, str(text))
 
         def row(self, cols, widths, bold=False):
             self.set_font('Helvetica', 'B' if bold else '', 9)
@@ -574,7 +610,64 @@ def _generate_pdf_report(
         pdf.set_text_color(26, 26, 46)
         pdf.cell(0, 5, f'Decision: {decision.decision_type}  |  Confidence: {decision.confidence:.0%}', new_x="LMARGIN", new_y="NEXT")
         pdf.multi_cell(0, 5, f'Reasoning: {decision.reasoning}')
+        if decision.alternative_options:
+            pdf.body(f'Alternatives: {", ".join(decision.alternative_options[:3])}')
         pdf.ln(2)
+
+    # Execution Details for auto-completed tasks
+    if execution_results:
+        pdf.add_page()
+        pdf.section('Agent Execution Details')
+
+        for exec_result in execution_results:
+            task_id = exec_result.get("task_id", "Unknown")
+            task_title = exec_result.get("task_title", "Unknown")
+            status = exec_result.get("status", "unknown")
+            summary = exec_result.get("summary", "")
+            commit_msg = exec_result.get("commit_message", "")
+            artifacts = exec_result.get("artifacts", [])
+            files_created = exec_result.get("files_created", [])
+            search_refs = exec_result.get("search_references", [])
+
+            pdf.sub_section(f'Task: {task_id} - {task_title}')
+            pdf.field('Status', status.upper())
+            pdf.field('Task Type', exec_result.get("task_type", "unknown"))
+
+            if summary:
+                pdf.ln(1)
+                pdf.set_font('Helvetica', 'B', 9)
+                pdf.set_text_color(80)
+                pdf.cell(0, 5, 'What was done:', new_x="LMARGIN", new_y="NEXT")
+                pdf.body(summary)
+
+            if commit_msg:
+                pdf.field('Commit Message', commit_msg)
+
+            if files_created:
+                pdf.ln(1)
+                pdf.set_font('Helvetica', 'B', 9)
+                pdf.set_text_color(80)
+                pdf.cell(0, 5, 'Files Created:', new_x="LMARGIN", new_y="NEXT")
+                for f in files_created:
+                    pdf.bullet(f)
+
+            if artifacts:
+                pdf.ln(1)
+                pdf.set_font('Helvetica', 'B', 9)
+                pdf.set_text_color(80)
+                pdf.cell(0, 5, 'Artifacts:', new_x="LMARGIN", new_y="NEXT")
+                for a in artifacts:
+                    pdf.bullet(a)
+
+            if search_refs:
+                pdf.ln(1)
+                pdf.set_font('Helvetica', 'B', 9)
+                pdf.set_text_color(80)
+                pdf.cell(0, 5, 'References (Web Search):', new_x="LMARGIN", new_y="NEXT")
+                for ref in search_refs:
+                    pdf.bullet(ref)
+
+            pdf.ln(3)
 
     # Save
     data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
