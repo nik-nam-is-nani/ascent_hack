@@ -5,6 +5,7 @@ import TaskManifest from './components/TaskManifest'
 import ManagerReport from './components/ManagerReport'
 import AgentVisualizer from './components/AgentVisualizer'
 import WorkspaceExplorer from './components/WorkspaceExplorer'
+import WebhookTrigger from './components/WebhookTrigger'
 
 const API_BASE = 'http://127.0.0.1:8000'
 
@@ -357,12 +358,22 @@ function App() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            <AgentVisualizer 
-              activities={activities} 
-              isProcessing={isProcessing} 
+            <AgentVisualizer
+              activities={activities}
+              isProcessing={isProcessing}
               targetEmployee={employees.find(e => e.id === selectedEmployee)}
             />
-            
+
+            {/* Webhook / Custom Input Panel */}
+            <WebhookTrigger
+              isProcessing={isProcessing}
+              setIsProcessing={setIsProcessing}
+              onTrigger={handleMarkAbsent}
+              employees={employees}
+              githubToken={githubToken}
+              repoUrl={repoUrl}
+            />
+
             <div className="flex flex-col lg:flex-row gap-8">
               <div className="flex-1">
                 <div className="flex items-center justify-between mb-6">
