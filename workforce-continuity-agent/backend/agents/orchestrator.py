@@ -337,13 +337,26 @@ async def _run_pipeline(
     # Generate markdown report
     report = generate_manager_report(employee, pending_tasks, decisions)
 
+    # Generate PDF report
+    try:
+        pdf_path = _generate_pdf_report(employee, pending_tasks, decisions, employee_id)
+        broadcast_activity(
+            "phase_6",
+            f"PDF report generated: {pdf_path}",
+            {"phase": "pdf_generated", "pdf_path": pdf_path}
+        )
+    except Exception as pdf_err:
+        print(f"[ORCHESTRATOR] PDF generation error: {pdf_err}", flush=True)
+        pdf_path = None
+
     broadcast_activity(
         "phase_6",
         f"Continuity pipeline completed. {len(pending_tasks)} tasks handled efficiently.",
         {
             "total_tasks": len(pending_tasks),
             "reassigned": reallocation_report.get("reassigned_count", 0),
-            "auto_completed": reallocation_report.get("auto_complete_count", 0)
+            "auto_completed": reallocation_report.get("auto_complete_count", 0),
+            "pdf_path": pdf_path
         }
     )
 
@@ -357,6 +370,7 @@ async def _run_pipeline(
         "manifest": manifest.model_dump(),
         "report": report,
         "reallocation_report": reallocation_report,
+        "pdf_path": pdf_path,
         "timestamp": datetime.now().isoformat()
     }
 
@@ -458,6 +472,117 @@ def reset_absence(employee_id: str) -> Dict[str, Any]:
         "status": "reset",
         "message": f"Employee status reset and tasks restored to {employee.name}"
     }
+
+
+def _generate_pdf_report(
+    employee: Employee,
+    tasks: List[Task],
+    decisions: List[Decision],
+    employee_id: str
+) -> str:
+    """Generate a PDF manager report and return the file path"""
+    from fpdf import FPDF
+    import os
+
+    class ReportPDF(FPDF):
+        def header(self):
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(15, 52, 96)
+            self.cell(0, 8, 'Workforce Continuity Agent - Intelligence Report', align='L')
+            self.cell(0, 8, datetime.now().strftime('%Y-%m-%d %H:%M'), align='R', new_x="LMARGIN", new_y="NEXT")
+            self.set_draw_color(233, 69, 96)
+            self.set_line_width(0.5)
+            self.line(10, 18, 200, 18)
+            self.ln(5)
+
+        def footer(self):
+            self.set_y(-15)
+            self.set_font('Helvetica', 'I', 8)
+            self.set_text_color(128)
+            self.cell(0, 10, f'Page {self.page_no()}/{{nb}}', align='C')
+
+        def section(self, title):
+            self.set_font('Helvetica', 'B', 13)
+            self.set_text_color(15, 52, 96)
+            self.cell(0, 10, title, new_x="LMARGIN", new_y="NEXT")
+            self.set_draw_color(233, 69, 96)
+            self.line(10, self.get_y(), 200, self.get_y())
+            self.ln(3)
+
+        def field(self, label, value):
+            self.set_font('Helvetica', 'B', 10)
+            self.set_text_color(80)
+            self.cell(45, 6, label + ':')
+            self.set_font('Helvetica', '', 10)
+            self.set_text_color(26, 26, 46)
+            self.cell(0, 6, str(value), new_x="LMARGIN", new_y="NEXT")
+
+        def row(self, cols, widths, bold=False):
+            self.set_font('Helvetica', 'B' if bold else '', 9)
+            for col, w in zip(cols, widths):
+                self.cell(w, 7, str(col)[:40], border=1)
+            self.ln()
+
+    pdf = ReportPDF()
+    pdf.alias_nb_pages()
+    pdf.set_auto_page_break(auto=True, margin=20)
+    pdf.add_page()
+
+    # Employee info
+    pdf.section('Absent Employee')
+    pdf.field('Name', employee.name)
+    pdf.field('Role', employee.role)
+    pdf.field('Department', employee.department)
+    pdf.field('Email', employee.email)
+    pdf.ln(3)
+
+    # Task summary
+    reassigned = sum(1 for d in decisions if d.decision_type == 'reassign')
+    auto_completed = sum(1 for d in decisions if d.decision_type == 'auto_complete')
+
+    pdf.section('Task Summary')
+    pdf.field('Total Tasks', str(len(tasks)))
+    pdf.field('Reassigned to Team', str(reassigned))
+    pdf.field('Auto-Completed by Agent', str(auto_completed))
+    pdf.ln(3)
+
+    # Task details table
+    pdf.section('Task Details')
+    w = [25, 55, 30, 40, 25]
+    pdf.row(['ID', 'Title', 'Decision', 'Assigned To', 'Confidence'], w, bold=True)
+    for task in tasks:
+        decision = next((d for d in decisions if d.task_id == task.id), None)
+        if decision:
+            assigned = decision.assigned_to or 'Agent Executor'
+            pdf.row([
+                task.id,
+                task.title[:25],
+                decision.decision_type,
+                assigned[:18],
+                f'{decision.confidence:.0%}'
+            ], w)
+    pdf.ln(3)
+
+    # Decision rationale
+    pdf.section('Decision Rationale')
+    for decision in decisions:
+        task = next((t for t in tasks if t.id == decision.task_id), None)
+        pdf.set_font('Helvetica', 'B', 10)
+        pdf.set_text_color(22, 33, 62)
+        pdf.cell(0, 7, f'{decision.task_id}: {task.title if task else ""}', new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font('Helvetica', '', 9)
+        pdf.set_text_color(26, 26, 46)
+        pdf.cell(0, 5, f'Decision: {decision.decision_type}  |  Confidence: {decision.confidence:.0%}', new_x="LMARGIN", new_y="NEXT")
+        pdf.multi_cell(0, 5, f'Reasoning: {decision.reasoning}')
+        pdf.ln(2)
+
+    # Save
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+    os.makedirs(data_dir, exist_ok=True)
+    pdf_path = os.path.join(data_dir, f"report_{employee_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf")
+    pdf.output(pdf_path)
+    print(f"[ORCHESTRATOR] PDF report saved: {pdf_path}", flush=True)
+    return pdf_path
 
 
 def _generate_mock_code(action: str, task: Task) -> str:
