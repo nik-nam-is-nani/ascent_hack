@@ -425,6 +425,38 @@ async def get_report(employee_id: str):
     }
 
 
+# PDF report endpoints
+@app.get("/api/reports")
+async def list_reports():
+    """List all generated PDF reports"""
+    import os
+    import glob
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    pdf_files = glob.glob(os.path.join(data_dir, "report_*.pdf"))
+    reports = []
+    for pdf_path in sorted(pdf_files, reverse=True):
+        filename = os.path.basename(pdf_path)
+        reports.append({
+            "filename": filename,
+            "path": pdf_path,
+            "download_url": f"/api/reports/{filename}",
+            "size_kb": round(os.path.getsize(pdf_path) / 1024, 1)
+        })
+    return {"reports": reports}
+
+
+@app.get("/api/reports/{filename}")
+async def download_report(filename: str):
+    """Download or view a PDF report"""
+    import os
+    from fastapi.responses import FileResponse
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    pdf_path = os.path.join(data_dir, filename)
+    if not os.path.exists(pdf_path) or not filename.endswith(".pdf"):
+        raise HTTPException(status_code=404, detail="Report not found")
+    return FileResponse(pdf_path, media_type="application/pdf", filename=filename)
+
+
 # Dashboard stats endpoint
 @app.get("/api/dashboard/stats")
 async def get_dashboard_stats():

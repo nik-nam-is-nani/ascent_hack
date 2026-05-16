@@ -1,6 +1,14 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 
 function ManagerReport({ report, selectedEmployee, employees }) {
+  const [pdfReports, setPdfReports] = useState([])
+
+  useEffect(() => {
+    fetch('/api/reports')
+      .then(res => res.json())
+      .then(data => setPdfReports(data.reports || []))
+      .catch(() => {})
+  }, [report])
   const getEmployee = (employeeId) => {
     return employees.find(e => e.id === employeeId)
   }
@@ -135,6 +143,19 @@ function ManagerReport({ report, selectedEmployee, employees }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {pdfReports.length > 0 && (
+            <a
+              href={pdfReports[0].download_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-indigo-200"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Download PDF Report
+            </a>
+          )}
           <button
             onClick={() => window.print()}
             className="flex items-center gap-2 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-slate-200"
@@ -142,7 +163,7 @@ function ManagerReport({ report, selectedEmployee, employees }) {
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 00-2 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 012-2H5a2 2 0 012 2v4a2 2 0 002 2z" />
             </svg>
-            Export PDF
+            Print
           </button>
         </div>
       </div>
